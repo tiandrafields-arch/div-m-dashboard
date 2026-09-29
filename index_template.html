@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Division M Field Dashboard, Section 1, East Baton Rouge</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css'" />
+<link rel="stylesheet" href="assets/leaflet.css?v=2" />
 <style>
   :root{--ink:#161b24;--muted:#5b6472;--line:#dde1e8;--bg:#f5f6f8;--d5:#c05621;--sec:#2b6cb0;}
   *{box-sizing:border-box}
@@ -34,7 +34,7 @@
 
   /* Responsive map shell: prevent the data panel from collapsing the map on phones. */
   #app{display:grid;grid-template-columns:minmax(0,1fr) 360px;width:100%;height:100vh;height:100dvh;min-height:0}
-  #map-shell{position:relative;min-width:0;min-height:0;overflow:hidden;background:#e7ecf1}
+  #map-shell{position:relative;min-width:0;min-height:0;overflow:hidden;background:#e7ecf1;isolation:isolate}
   #map{width:100%;height:100%;min-width:0;min-height:0}
   #panel{width:360px;min-width:0;height:100%;max-height:100%;overscroll-behavior:contain}
   .mobile-header{display:none}
@@ -54,7 +54,7 @@
     .mobile-header{display:block;padding:14px 16px 12px;background:#fff;border-bottom:1px solid var(--line)}
     .mobile-header h1{font-size:18px;line-height:1.25;margin:0 0 4px}
     .mobile-header p{font-size:12px;line-height:1.4;color:var(--muted);margin:0}
-    #map-shell{width:100%;height:55vh;height:55svh;min-height:320px;max-height:540px}
+    #map-shell{width:100%;height:55vh;height:55svh;min-height:340px;max-height:540px;display:block}
     #panel{width:100%;height:auto;max-height:none;min-width:0;overflow:visible;border-left:0;border-top:1px solid var(--line);padding:16px max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
     #panel>h1,#panel>.sub{display:none}
     .kpis{gap:9px}
@@ -131,26 +131,28 @@
   </aside>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js'"></script>
+<script src="assets/leaflet.min.js?v=2"></script>
 <!--DATA-->
 <script>
-const map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([30.55,-91.13],11);
+const map=L.map('map',{zoomControl:true,preferCanvas:true,scrollWheelZoom:false}).setView([30.55,-91.13],11);
 // The vector precinct map remains usable if map-tile services are unreachable.
-const tileLayer=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  {attribution:'&copy; OpenStreetMap, &copy; CARTO',maxZoom:19}).addTo(map);
-let tileFailures=0, secondaryTiles=null;
+// Public OpenStreetMap raster tiles; no commercial API key needed.
+// Keep this single layer and do not preload/harvest tiles. Polygon boundaries
+// and data are local and remain interactive without background imagery.
+const banner=document.getElementById('map-warning');
+const tileLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+  maxZoom:19, crossOrigin:true, keepBuffer:1, updateWhenIdle:true
+}).addTo(map);
+let tileErrors=0;
+tileLayer.on('tileload',()=>{
+  tileErrors=0;
+  banner.hidden=true;
+});
 tileLayer.on('tileerror',()=>{
-  if(++tileFailures<4 || secondaryTiles) return;
-  secondaryTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {attribution:'&copy; OpenStreetMap contributors',maxZoom:19}).addTo(map);
-  tileLayer.remove();
-  let secondaryErrors=0;
-  secondaryTiles.on('tileerror',()=>{
-    if(++secondaryErrors!==4) return;
-    const banner=document.getElementById('map-warning');
-    banner.textContent='Background tiles are unavailable on this network. Colored precincts and map popups still work.';
-    banner.hidden=false;
-  });
+  if(++tileErrors<4) return;
+  banner.textContent='Background map tiles are temporarily unavailable. Precinct shapes, statistics, and selection still work.';
+  banner.hidden=false;
 });
 
 const fmt=n=>Number(n||0).toLocaleString();
@@ -268,11 +270,11 @@ if('ResizeObserver' in window){
 }
 window.addEventListener('resize',refreshMapSize,{passive:true});
 window.addEventListener('orientationchange',()=>setTimeout(refreshMapSize,200),{passive:true});
-window.addEventListener('pageshow',refreshMapSize);
+window.addEventListener('pageshow',()=>{refreshMapSize();setTimeout(refreshMapSize,350)});
 
 draw();
 requestAnimationFrame(resetMap);
-window.addEventListener('load',()=>setTimeout(refreshMapSize,100),{once:true});
+window.addEventListener('load',()=>{setTimeout(refreshMapSize,100);setTimeout(refreshMapSize,600)},{once:true});
 </script>
 </body>
 </html>
